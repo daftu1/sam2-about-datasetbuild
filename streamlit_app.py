@@ -17,7 +17,8 @@ import contextlib
 def load_sam2_model():
     checkpoint = os.path.join(os.path.expanduser("~"), "sam2", "checkpoints", "sam2.1_hiera_base_plus.pt")
     model_cfg = os.path.join("configs", "sam2.1", "sam2.1_hiera_b+.yaml")
-    device = torch.device("cpu")  # 强制使用CPU
+    # 若可用则使用GPU，否则退回CPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return build_sam2_video_predictor(model_cfg, checkpoint, device=device, vos_optimized=True)
 
 sam2_model = load_sam2_model()
@@ -200,7 +201,8 @@ if session_id and segment_path:
                 os.makedirs(save_dir, exist_ok=True)
                 label_id = st.session_state["label_history"].index(label)
                 st.session_state["overlay_map"] = {}
-                with torch.autocast("cpu"):
+                # 根据环境自动选择 CUDA 或 CPU
+                with torch.autocast("cuda" if torch.cuda.is_available() else "cpu"):
                     inference_state = sam2_model.init_state(segment_path)
                     pts = [[p[0], p[1]] for p in ref_points]
                     lbls = [p[2] for p in ref_points]
