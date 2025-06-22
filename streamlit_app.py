@@ -100,7 +100,7 @@ if session_id and segment_path:
     col1, col2 = st.columns([3, 1])
 
     with col1:
-        click = streamlit_image_coordinates(preview_img, key=f"frame_{frame_index}_{st.session_state.get('refresh_flag', False)}")
+        click = streamlit_image_coordinates(preview_img, key=f"frame_{frame_index}")
 
     with col2:
         st.markdown("### 🎞️ 当前帧控制")
@@ -135,7 +135,7 @@ if session_id and segment_path:
             if frame_index not in st.session_state["points"]:
                 st.session_state["points"][frame_index] = []
             st.session_state["points"][frame_index].append((click["x"], click["y"], labelP))
-            st.session_state["refresh_flag"] = not st.session_state.get("refresh_flag", False)
+            st.rerun()
 
         if st.button("🧹 清除当前帧所有点"):
             if "points" in st.session_state and frame_index in st.session_state["points"]:
@@ -143,14 +143,14 @@ if session_id and segment_path:
                 if "overlay_map" in st.session_state and frame_index in st.session_state["overlay_map"]:
                     del st.session_state["overlay_map"][frame_index]
                 st.success("✅ 当前帧点清除完毕")
-                st.session_state["refresh_flag"] = not st.session_state.get("refresh_flag", False)
+                st.experimental_rerun()
 
         if st.button("🧼 清除所有帧的点"):
             st.session_state["points"] = {}
             if "overlay_map" in st.session_state:
                 st.session_state["overlay_map"] = {}
             st.success("✅ 所有帧点清除完毕")
-            st.session_state["refresh_flag"] = not st.session_state.get("refresh_flag", False)
+            st.experimental_rerun()
 
         if st.button("👁️ 预览当前帧标注"):
             if not points:
