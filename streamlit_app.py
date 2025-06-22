@@ -172,13 +172,13 @@ if session_id and segment_path:
                         clear_old_points=True,
                         normalize_coords=False
                     )
-                    mask = masks[0, 0].cpu().numpy().astype(np.uint8)
-                    mask_tensor = torch.tensor(mask[None])
+                    mask_tensor = (masks[0] > 0.0)
                     if mask_tensor.any():
-                        box = masks_to_boxes(mask_tensor)[0].int().tolist()
+                        box = masks_to_boxes(mask_tensor)[0].int().cpu().tolist()
                     else:
                         st.warning("⚠️ 生成的掩码为空，无法计算外接框")
                         box = [0, 0, 0, 0]
+                    mask = mask_tensor[0].byte().cpu().numpy()
                     x1, y1, x2, y2 = box
                     overlay = frame_np.copy()
                     overlay[mask == 1] = (overlay[mask == 1] * 0.5 + np.array([128, 128, 255]) * 0.5).astype(np.uint8)
@@ -213,7 +213,7 @@ if session_id and segment_path:
                     lbls = [p[2] for p in ref_points]
                     sam2_model.add_new_points_or_box(
                         inference_state=inference_state,
-                        frame_idx=0,
+                        frame_idx=frame_index,
                         obj_id=0,
                         points=pts,
                         labels=lbls,
@@ -232,9 +232,10 @@ if session_id and segment_path:
                         mask = video_segments.get(i, {}).get(0, None)
                         if mask is None:
                             continue
-                        mask_tensor = torch.tensor(mask[None])
+                        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                        mask_tensor = torch.from_numpy(mask[None]).to(device)
                         if mask_tensor.any():
-                            box = masks_to_boxes(mask_tensor)[0].int().tolist()
+                            box = masks_to_boxes(mask_tensor)[0].int().cpu().tolist()
                         else:
                             st.warning(f"⚠️ 第{i}帧掩码为空，跳过外接框计算")
                             continue
