@@ -173,7 +173,12 @@ if session_id and segment_path:
                         normalize_coords=False
                     )
                     mask = masks[0, 0].cpu().numpy().astype(np.uint8)
-                    box = masks_to_boxes(torch.tensor(mask[None]))[0].int().tolist()
+                    mask_tensor = torch.tensor(mask[None])
+                    if mask_tensor.any():
+                        box = masks_to_boxes(mask_tensor)[0].int().tolist()
+                    else:
+                        st.warning("⚠️ 生成的掩码为空，无法计算外接框")
+                        box = [0, 0, 0, 0]
                     x1, y1, x2, y2 = box
                     overlay = frame_np.copy()
                     overlay[mask == 1] = (overlay[mask == 1] * 0.5 + np.array([128, 128, 255]) * 0.5).astype(np.uint8)
@@ -227,7 +232,12 @@ if session_id and segment_path:
                         mask = video_segments.get(i, {}).get(0, None)
                         if mask is None:
                             continue
-                        box = masks_to_boxes(torch.tensor(mask[None]))[0].int().tolist()
+                        mask_tensor = torch.tensor(mask[None])
+                        if mask_tensor.any():
+                            box = masks_to_boxes(mask_tensor)[0].int().tolist()
+                        else:
+                            st.warning(f"⚠️ 第{i}帧掩码为空，跳过外接框计算")
+                            continue
                         x1, y1, x2, y2 = box
                         h, w = mask.shape
                         yolo_line = f"{label_id} {(x1+x2)/2/w:.6f} {(y1+y2)/2/h:.6f} {(x2-x1)/w:.6f} {(y2-y1)/h:.6f}\n"
