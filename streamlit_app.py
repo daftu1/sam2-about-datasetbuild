@@ -17,7 +17,8 @@ import contextlib
 def load_sam2_model():
     checkpoint = os.path.join(os.path.expanduser("~"), "sam2", "checkpoints", "sam2.1_hiera_base_plus.pt")
     model_cfg = os.path.join("configs", "sam2.1", "sam2.1_hiera_b+.yaml")
-    device = torch.device("cpu")  # 强制使用CPU
+    # 若可用则使用GPU，否则退回CPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return build_sam2_video_predictor(model_cfg, checkpoint, device=device, vos_optimized=True)
 
 sam2_model = load_sam2_model()
@@ -171,8 +172,13 @@ if session_id and segment_path:
                         clear_old_points=True,
                         normalize_coords=False
                     )
-                    mask = masks[0, 0].cpu().numpy().astype(np.uint8)
-                    box = masks_to_boxes(torch.tensor(mask[None]))[0].int().tolist()
+                    mask_tensor = (masks[0] > 0.0)
+                    if mask_tensor.any():
+                        box = masks_to_boxes(mask_tensor)[0].int().cpu().tolist()
+                    else:
+                        st.warning("⚠️ 生成的掩码为空，无法计算外接框")
+                        box = [0, 0, 0, 0]
+                    mask = mask_tensor[0].byte().cpu().numpy()
                     x1, y1, x2, y2 = box
                     overlay = frame_np.copy()
                     overlay[mask == 1] = (overlay[mask == 1] * 0.5 + np.array([128, 128, 255]) * 0.5).astype(np.uint8)
@@ -200,13 +206,14 @@ if session_id and segment_path:
                 os.makedirs(save_dir, exist_ok=True)
                 label_id = st.session_state["label_history"].index(label)
                 st.session_state["overlay_map"] = {}
-                with torch.autocast("cpu"):
+                # 根据环境自动选择 CUDA 或 CPU
+                with torch.autocast("cuda" if torch.cuda.is_available() else "cpu"):
                     inference_state = sam2_model.init_state(segment_path)
                     pts = [[p[0], p[1]] for p in ref_points]
                     lbls = [p[2] for p in ref_points]
                     sam2_model.add_new_points_or_box(
                         inference_state=inference_state,
-                        frame_idx=0,
+                        frame_idx=frame_index,
                         obj_id=0,
                         points=pts,
                         labels=lbls,
@@ -225,7 +232,13 @@ if session_id and segment_path:
                         mask = video_segments.get(i, {}).get(0, None)
                         if mask is None:
                             continue
-                        box = masks_to_boxes(torch.tensor(mask[None]))[0].int().tolist()
+                        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                        mask_tensor = torch.from_numpy(mask[None]).to(device)
+                        if mask_tensor.any():
+                            box = masks_to_boxes(mask_tensor)[0].int().cpu().tolist()
+                        else:
+                            st.warning(f"⚠️ 第{i}帧掩码为空，跳过外接框计算")
+                            continue
                         x1, y1, x2, y2 = box
                         h, w = mask.shape
                         yolo_line = f"{label_id} {(x1+x2)/2/w:.6f} {(y1+y2)/2/h:.6f} {(x2-x1)/w:.6f} {(y2-y1)/h:.6f}\n"
